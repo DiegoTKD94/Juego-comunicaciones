@@ -14,15 +14,22 @@ var config = {
         preload: preload,
         create: create,
         update: update
-    } 
+    }
 };
 
 var game = new Phaser.Game(config);
 
+// Codigo para el crono
+var image;
+var text;
+var timedEvent;
+var s;
+
 function preload() {
-    this.load.image('fondo', './assets/fondo.png');   //Carga imagen del fondo del juego.
-    this.load.image('suelo', './assets/suelo.png');   //Carga imagen del suelo.
-    this.load.image('base', './assets/base.png');   //Carga imagen de la base del mapa.
+    this.load.image('fin', 'assets/game-over.jpg'); // Para el game-over.
+    this.load.image('fondo', './assets/fondo.png'); //Carga imagen del fondo del juego.
+    this.load.image('suelo', './assets/suelo.png'); //Carga imagen del suelo.
+    this.load.image('base', './assets/base.png'); //Carga imagen de la base del mapa.
     //Carga la imagen de los diferentes tipos de personaje.
     this.load.image('sonic', './assets/sonic.png');
     this.load.image('ray', './assets/ray.png');
@@ -35,8 +42,12 @@ var platforms;
 
 function create() {
 
+
     this.add.image(400, 300, 'fondo');
     platforms = this.physics.add.staticGroup();
+    image = this.add.image(600, 600, 'fin'); // Para el cronómetro
+
+    text = this.add.text(32, 32);
 
     platforms.create(400, 690, 'base').setScale(1.5).refreshBody();
     //Creando las superficies de abajo hacia arriba.
@@ -57,16 +68,21 @@ function create() {
     platforms.create(190, 270, 'suelo').setScale(0.4).refreshBody();
     platforms.create(890, 220, 'suelo').setScale(0.4).refreshBody();
 
+    // Prueba para el cronómetro
+    //  The same as above, but uses a method signature to declare it (shorter, and compatible with GSAP syntax)
+    timedEvent = this.time.delayedCall(1000, onEvent, [], this);
+    // timedEvent.timeScale = 350;
+
 
 
     var self = this;
     this.socket = io();
     this.enemigos = this.physics.add.group();
 
-    
 
-    this.socket.on('currentPlayers', function (players) {
-        Object.keys(players).forEach(function (id) {
+
+    this.socket.on('currentPlayers', function(players) {
+        Object.keys(players).forEach(function(id) {
             if (players[id].playerId === self.socket.id) {
                 addPlayer(self, players[id]);
             } else {
@@ -75,20 +91,20 @@ function create() {
         });
     });
 
-    this.socket.on('newPlayer', function (playerInfo) {
+    this.socket.on('newPlayer', function(playerInfo) {
         addenemigos(self, playerInfo);
     });
 
-    this.socket.on('disconnect', function (playerId) {
-        self.enemigos.getChildren().forEach(function (enemigo) {
-        if (playerId === enemigo.playerId) {
-            enemigo.destroy();
-        }
+    this.socket.on('disconnect', function(playerId) {
+        self.enemigos.getChildren().forEach(function(enemigo) {
+            if (playerId === enemigo.playerId) {
+                enemigo.destroy();
+            }
         });
     });
 
-    this.socket.on('playerMoved', function (playerInfo) {
-        self.enemigos.getChildren().forEach(function (enemigo) {
+    this.socket.on('playerMoved', function(playerInfo) {
+        self.enemigos.getChildren().forEach(function(enemigo) {
             if (playerInfo.playerId === enemigo.playerId) {
                 enemigo.setPosition(playerInfo.x, playerInfo.y);
             }
@@ -96,45 +112,45 @@ function create() {
     });
     //Se agregan las teclas activas.
     this.cursors = this.input.keyboard.createCursorKeys();
-    
+
 }
 
 function update() {
+
+    text.setText('Tiempo restante: ' + timedEvent.getProgress().toString().substr(0, 4));
+
+    if (timedEvent.getProgress() === 1) {
+        console.log('llegó');
+    }
 
     if (this.jugador) {
         // Emite el movimiento del jugador
         var x = this.jugador.x;
         var y = this.jugador.y;
         if (this.jugador.oldPosition && (x !== this.jugador.oldPosition.x || y !== this.jugador.oldPosition.y)) {
-            this.socket.emit('playerMovement', { x: this.jugador.x, y: this.jugador.y});
+            this.socket.emit('playerMovement', { x: this.jugador.x, y: this.jugador.y });
         }
-    
+
         // Guarda los datos de la antigua posición del jugador.
         this.jugador.oldPosition = {
             x: this.jugador.x,
             y: this.jugador.y,
         };
         // Acciones de las teclas.
-        if (this.cursors.left.isDown)
-        {
+        if (this.cursors.left.isDown) {
             this.jugador.setVelocityX(-160);
-            this.jugador.flipX=true;
-        }
-        else if (this.cursors.right.isDown)
-        {
+            this.jugador.flipX = true;
+        } else if (this.cursors.right.isDown) {
             this.jugador.setVelocityX(160);
-            this.jugador.flipX=false;
-        }
-        else
-        {
+            this.jugador.flipX = false;
+        } else {
             this.jugador.setVelocityX(0);
         }
 
-        if (this.cursors.up.isDown && this.jugador.body.touching.down)
-        {
+        if (this.cursors.up.isDown && this.jugador.body.touching.down) {
             this.jugador.setVelocityY(-250);
         }
-        
+
         //this.physics.world.wrap(this.jugador, 5); //No entiendo con exactitud lo que hace.
     }
 }
@@ -143,13 +159,13 @@ function update() {
 function addPlayer(self, playerInfo) {
     if (playerInfo.tipoPersonaje == 0) {
         self.jugador = self.physics.add.image(playerInfo.x, playerInfo.y, 'sonic').setOrigin(0.5, 0.5);
-    } else if(playerInfo.tipoPersonaje == 1 ){
+    } else if (playerInfo.tipoPersonaje == 1) {
         self.jugador = self.physics.add.image(playerInfo.x, playerInfo.y, 'ray').setOrigin(0.5, 0.5);
-    }else if(playerInfo.tipoPersonaje == 2 ){
+    } else if (playerInfo.tipoPersonaje == 2) {
         self.jugador = self.physics.add.image(playerInfo.x, playerInfo.y, 'armadillo').setOrigin(0.5, 0.5);
-    }else if(playerInfo.tipoPersonaje == 3 ){
+    } else if (playerInfo.tipoPersonaje == 3) {
         self.jugador = self.physics.add.image(playerInfo.x, playerInfo.y, 'miles').setOrigin(0.5, 0.5);
-    }else{
+    } else {
         self.jugador = self.physics.add.image(playerInfo.x, playerInfo.y, 'knuckles').setOrigin(0.5, 0.5);
     }
 
@@ -162,13 +178,13 @@ function addPlayer(self, playerInfo) {
 function addenemigos(self, playerInfo) {
     if (playerInfo.tipoPersonaje == 0) {
         self.enemigo = self.physics.add.image(playerInfo.x, playerInfo.y, 'sonic').setOrigin(0.5, 0.5);
-    } else if(playerInfo.tipoPersonaje == 1 ){
+    } else if (playerInfo.tipoPersonaje == 1) {
         self.enemigo = self.physics.add.image(playerInfo.x, playerInfo.y, 'ray').setOrigin(0.5, 0.5);
-    }else if(playerInfo.tipoPersonaje == 2 ){
+    } else if (playerInfo.tipoPersonaje == 2) {
         self.enemigo = self.physics.add.image(playerInfo.x, playerInfo.y, 'armadillo').setOrigin(0.5, 0.5);
-    }else if(playerInfo.tipoPersonaje == 3 ){
+    } else if (playerInfo.tipoPersonaje == 3) {
         self.enemigo = self.physics.add.image(playerInfo.x, playerInfo.y, 'miles').setOrigin(0.5, 0.5);
-    }else{
+    } else {
         self.enemigo = self.physics.add.image(playerInfo.x, playerInfo.y, 'knuckles').setOrigin(0.5, 0.5);
     }
     self.enemigo.setBounce(0.1);
@@ -176,4 +192,8 @@ function addenemigos(self, playerInfo) {
     self.physics.add.collider(self.enemigo, platforms);
     self.enemigo.playerId = playerInfo.playerId;
     self.enemigos.add(self.enemigo);
+}
+
+function onEvent() {
+    image.setScale(0.5);
 }
